@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Event Photo Gallery</title>
+  <style>
+    body{font-family:Arial,Helvetica,sans-serif;background:#fafafa;margin:0;padding:16px;display:flex;flex-direction:column;align-items:center;}
+    h1{margin:6px 0;}
+    #msg{margin-top:6px;color:#333;}
+    #gallery{margin-top:12px;width:100%;max-width:920px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;}
+    .photo-card{background:white;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08);padding:8px;text-align:center;}
+    .photo-card img{width:100%;border-radius:6px;height:140px;object-fit:cover;}
+    .photo-card a{display:inline-block;margin-top:8px;padding:6px 10px;background:#28a745;color:white;text-decoration:none;border-radius:6px;font-size:14px;}
+  </style>
+</head>
+<body>
+  <h1>📷 Event Photo Gallery</h1>
+  <div id="msg">Loading photos...</div>
+  <div id="gallery"></div>
+
+  <script>
+    // Replace with your Apps Script Web App URL (GET returns JSON list)
+    const API_URL = "https://script.google.com/macros/s/AKfycbxKIJ-fOrLqsabeNLGcgBP8jbMNBGFAkywQGxlkl6A4dofzMadCqmFTlGk6b4YaKTvdzw/execL";
+
+    async function loadGallery(){
+      const gallery = document.getElementById("gallery");
+      const msg = document.getElementById("msg");
+      msg.textContent = "Loading photos...";
+      try {
+        const res = await fetch(API_URL);
+        const data = await res.json();
+        if (!Array.isArray(data)) throw "Invalid response";
+        gallery.innerHTML = "";
+        data.forEach(file => {
+          const card = document.createElement("div");
+          card.className = "photo-card";
+          card.innerHTML = `<img src="${file.url}" alt="${file.name}"><br>
+                            <a href="${file.url}" download="${file.name}">Download</a>`;
+          gallery.appendChild(card);
+        });
+        if(data.length === 0) msg.textContent = "No photos yet.";
+        else msg.textContent = "Photos loaded.";
+      } catch (err) {
+        msg.textContent = "Failed to load photos: " + err;
+      }
+    }
+
+    loadGallery();
+  </script>
+</body>
+</html>

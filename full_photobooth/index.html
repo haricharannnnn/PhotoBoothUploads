@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>Photo Booth — Mobile Ready</title>
+  <style>
+    :root{--maxw:640px;}
+    body{font-family:Arial,Helvetica,sans-serif;background:#fafafa;margin:0;padding:14px;display:flex;flex-direction:column;align-items:center;}
+    header{width:100%;max-width:var(--maxw);display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+    h1{font-size:18px;margin:6px 0;}
+    .wrapper{position:relative;width:100%;max-width:var(--maxw);aspect-ratio:4/3;background:#000;border-radius:12px;overflow:hidden;}
+    video, img{width:100%;height:100%;object-fit:cover;display:block;}
+    #frame{position:absolute;inset:0;pointer-events:none;}
+    #canvas{display:none;}
+    .controls{margin-top:12px;display:flex;gap:12px;align-items:center;justify-content:center;width:100%;max-width:var(--maxw);}
+    button{flex:1;padding:12px 14px;font-size:16px;border-radius:10px;border:none;background:#007bff;color:white;cursor:pointer;touch-action:manipulation;}
+    #msg{margin-top:8px;font-size:13px;color:#333;min-height:18px;text-align:center;max-width:var(--maxw);}
+    #gallery{margin-top:18px;width:100%;max-width:920px;display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;}
+    .photo-card{background:white;border-radius:8px;box-shadow:0 2px 6px rgba(0,0,0,0.08);padding:8px;text-align:center;}
+    .photo-card img{width:100%;border-radius:6px;height:140px;object-fit:cover;}
+    .photo-card a{display:inline-block;margin-top:8px;padding:6px 10px;background:#28a745;color:white;text-decoration:none;border-radius:6px;font-size:14px;}
+    @media (max-width:420px){
+      h1{font-size:16px;} button{font-size:15px;padding:10px;}
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>📸 Mobile Photo Booth</h1>
+    <div style="font-size:13px;color:#666">Tap Capture to save</div>
+  </header>
+
+  <div class="wrapper" id="cameraWrap">
+    <video id="video" autoplay playsinline muted></video>
+    <img id="frame" src="frame.png" alt="Frame overlay" />
+    <canvas id="canvas" width="640" height="480"></canvas>
+  </div>
+
+  <div class="controls">
+    <button id="capture">Capture & Upload</button>
+  </div>
+  <div id="msg">Initializing camera...</div>
+
+  <h2 style="margin-top:18px">Gallery</h2>
+  <div id="gallery">Loading photos...</div>
+
+<script>
+  // CONFIG: replace with your Apps Script Web App URL (GET = list, POST = upload)
+  const UPLOAD_URL = "https://script.google.com/macros/s/AKfycbxKIJ-fOrLqsabeNLGcgBP8jbMNBGFAkywQGxlkl6A4dofzMadCqmFTlGk6b4YaKTvdzw/exec";
+
+
+  const video = document.getElementById("video");
+  const canvas = document.getElementById("canvas");
+  const ctx = canvas.getContext("2d");
+  const frameImg = document.getElementById("frame");
+  const msg = document.getElementById("msg");
+  const gallery = document.getElementById("gallery");
+
+  const params = new URLSearchParams(window.location.search);
+  const eventParam = params.get("event") || "";
+
+  async function startCamera(){
+    try {
+      // Request front-facing camera on mobile (user-facing)
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "user" } }, audio: false });
+      video.srcObject = stream;
+      msg.textContent = "Position yourself in the frame and tap Capture.";
+    } catch (err) {
+      msg.textContent = "Camera error: " + err.message + ". Try Chrome (Android) or Safari (iOS) and allow camera permission.";
+    }
+  }
+  startCamera();
+
+  async function loadGallery(){
+    gallery.textContent = "Loading photos...";
+    try {
+      const res = await fetch(UPLOAD_URL);
+      const data = await res.json();
+      if (!Array.isArray(data)) throw "Invalid response";
+      gallery.innerHTML = "";
+      data.forEach(file => {
+        const card = document.createElement("div");
+        card.className = "photo-card";
+        card.innerHTML = `<img src="${file.url}" alt="${file.name}"><br>
+                          <a href="${file.url}" download="${file.name}">Download</a>`;
+        gallery.appendChild(card);
+      });
+      if(data.length === 0) gallery.textContent = "No photos yet.";
+    } catch (err) {
+      gallery.textContent = "Failed to load photos: " + err;
+    }
+  }
+
+  document.getElementById("capture").addEventListener("click", async () => {
+    msg.textContent = "Capturing...";
+    // draw current video + overlay to canvas (canvas size fixed to 640x480)
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
+    const dataURL = canvas.toDataURL("image/png").replace(/^data:image\/png;base64,/, "");
+    const body = new URLSearchParams();
+    body.append("image", dataURL);
+    if (eventParam) body.append("event", eventParam);
+    if (CLIENT_KEY) body.append("key", CLIENT_KEY);
+
+    try {
+      const res = await fetch(UPLOAD_URL, { method: "POST", body: body, headers: { "Content-Type": "application/x-www-form-urlencoded" } });
+      const json = await res.json();
+      if (json.status === "OK") {
+        msg.textContent = "Uploaded ✓ — refreshing gallery...";
+        loadGallery();
+      } else {
+        msg.textContent = "Upload failed: " + (json.message || JSON.stringify(json));
+      }
+    } catch (err) {
+      msg.textContent = "Upload error: " + err;
+    }
+  });
+
+  // Wait for frame image to load then refresh gallery
+  frameImg.addEventListener('load', loadGallery);
+  // Also load gallery on start (if frame cached)
+  loadGallery();
+</script>
+</body>
+</html>
